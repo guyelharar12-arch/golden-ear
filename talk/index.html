@@ -90,7 +90,15 @@
   <details>
     <summary>מה אפשר להגיד</summary>
     <p>שם המרווח: "טרצה גדולה", "קווינטה", "אוקטבה" (או "שלישית גדולה", "חמישית"...).<br />
+    או מספר: "חמש" = קווינטה, "ארבע" = קוורטה, "שמונה" = אוקטבה, "שלוש גדולה" = טרצה גדולה.<br />
+    דבר אחרי הצפצוף.<br />
     "שוב" — להשמיע שוב · "לא יודע" — לשמוע את התשובה · "יותר קשה" / "יותר קל" — לשנות רמה · "עצור" — לסיים.</p>
+  </details>
+
+  <details id="misheard-box">
+    <summary>מה שמעתי ולא הבנתי</summary>
+    <p class="sub">אם משהו חוזר כאן הרבה — צלם מסך ושלח, ואלמד לזהות אותו.</p>
+    <ol id="misheard"></ol>
   </details>
 </main>
 
@@ -119,21 +127,29 @@
   };
 
   // ------------------------------------------------------ פירוש מה שנאמר
+  // זיהוי הדיבור כותב מונחים נדירים כמו "קווינטה" בכל מיני צורות ("כווינטה",
+  // "קווין טה"...), אז ההתאמה סלחנית: קודם התאמה מדויקת, אחר כך מספרים
+  // ("חמש" = קווינטה), ובסוף התאמה "לפי צליל" שמתעלמת מהבדלי כתיב.
   const FAMILY_WORDS = {
-    2: ['סקונדה', 'סקונד', 'שנייה', 'שניה'],
-    3: ['טרצה', 'טרצא', 'טרסה', 'שלישית'],
-    4: ['קוורטה', 'קווארטה', 'קוארטה', 'קוורט', 'רביעית'],
-    TT: ['טריטון', 'טרייטון', 'טריטונוס'],
-    5: ['קווינטה', 'קוינטה', 'קווינט', 'חמישית'],
-    6: ['סקסטה', 'סקסט', 'שישית'],
-    7: ['ספטימה', 'ספטים', 'שביעית'],
-    8: ['אוקטבה', 'אוקטבא', 'אוקטבות'],
+    2: ['סקונדה', 'סקונד', 'second'],
+    3: ['טרצה', 'טרצא', 'טרסה', 'שלישית', 'third'],
+    4: ['קוורטה', 'קווארטה', 'קוארטה', 'קוורט', 'רביעית', 'fourth'],
+    TT: ['טריטון', 'טרייטון', 'טריטונוס', 'tritone'],
+    5: ['קווינטה', 'קוינטה', 'קווינט', 'חמישית', 'fifth'],
+    6: ['סקסטה', 'סקסט', 'שישית', 'sixth'],
+    7: ['ספטימה', 'ספטים', 'שביעית', 'seventh'],
+    8: ['אוקטבה', 'אוקטבא', 'אוקטבות', 'octave'],
   };
-  const MAJOR_WORDS = ['גדולה', 'גדול', 'מז׳ור', "מז'ור", 'מאז׳ור', "מאז'ור", 'מזור', 'מז׳ורית', "מז'ורית"];
-  const MINOR_WORDS = ['קטנה', 'קטן', 'מינור', 'מינורית'];
+  // מספר = מספר המרווח ("חמש" = קווינטה, "שלוש גדולה" = טרצה גדולה).
+  const NUMBER_WORDS = {
+    2: ['שתיים', 'שתים', '2'], 3: ['שלוש', 'שלושה', '3'], 4: ['ארבע', 'ארבעה', '4'],
+    5: ['חמש', 'חמישה', '5'], 6: ['שש', 'שישה', '6'], 7: ['שבע', 'שבעה', '7'], 8: ['שמונה', '8'],
+  };
+  const MAJOR_WORDS = ['גדולה', 'גדול', 'מז׳ור', "מז'ור", 'מאז׳ור', "מאז'ור", 'מזור', 'מז׳ורית', "מז'ורית", 'מייג׳ור', "מייג'ור", 'major'];
+  const MINOR_WORDS = ['קטנה', 'קטן', 'מינור', 'מינורית', 'מיינור', 'minor'];
   const COMMANDS = {
-    stop: ['עצור', 'תעצור', 'סטופ', 'די', 'מספיק', 'סיים'],
-    repeat: ['שוב', 'עוד פעם', 'חזור', 'תחזור', 'עוד הפעם'],
+    stop: ['עצור', 'תעצור', 'סטופ', 'די', 'מספיק', 'סיים', 'stop'],
+    repeat: ['שוב', 'עוד פעם', 'חזור', 'תחזור', 'עוד הפעם', 'again'],
     reveal: ['לא יודע', 'לא יודעת', 'אין לי מושג', 'דלג', 'תגיד לי'],
     harder: ['יותר קשה', 'קשה יותר', 'תעלה רמה'],
     easier: ['יותר קל', 'קל יותר', 'תוריד רמה'],
@@ -141,8 +157,83 @@
 
   const norm = (s) => ` ${String(s || '').toLowerCase().replace(/[.,!?;:"()\-–]/g, ' ').replace(/\s+/g, ' ').trim()} `;
   const has = (text, words) => words.some((w) => text.includes(w));
-  // פקודות — רק כמילה שלמה ("די" לא יתפוס את "ידיים").
+  // פקודות ומספרים — רק כמילה שלמה ("די" לא יתפוס את "ידיים").
   const hasWord = (text, words) => words.some((w) => text.includes(` ${w} `));
+
+  // "צליל" של מילה: מאחד אותיות שנשמעות אותו דבר וכתיב חסר/מלא, כדי
+  // ש"כווינטה", "קוינטה" ו"קווינטה" ייחשבו קרובות.
+  const FINALS = { 'ך': 'כ', 'ם': 'מ', 'ן': 'נ', 'ף': 'פ', 'ץ': 'צ' };
+  function snd(word) {
+    return word
+      .replace(/[֑-ׇ׳'"`]/g, '')
+      .replace(/[ךםןףץ]/g, (c) => FINALS[c])
+      .replace(/[כח]/g, 'ק').replace(/ת/g, 'ט').replace(/ב/g, 'ו').replace(/ש/g, 'ס').replace(/ע/g, 'א')
+      .replace(/ה$/, 'א')
+      .replace(/(.)\1+/g, '$1');
+  }
+  function lev(a, b) {
+    const row = Array.from({ length: b.length + 1 }, (_, j) => j);
+    for (let i = 1; i <= a.length; i++) {
+      let prev = row[0];
+      row[0] = i;
+      for (let j = 1; j <= b.length; j++) {
+        const tmp = row[j];
+        row[j] = Math.min(row[j] + 1, row[j - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1));
+        prev = tmp;
+      }
+    }
+    return row[b.length];
+  }
+  /** המילים במשפט + צמדים מחוברים (למקרה ש"קווינטה" נשמע כ"קווין טה"). */
+  function candidates(t) {
+    const tokens = t.trim().split(' ').filter(Boolean);
+    const out = tokens.slice();
+    for (let i = 0; i + 1 < tokens.length; i++) out.push(tokens[i] + tokens[i + 1]);
+    return out.map(snd).filter((w) => w.length >= 3);
+  }
+  /** המילה הכי קרובה ברשימה, אם היא קרובה מספיק. מחזיר מרחק או Infinity. */
+  function fuzzyDistance(t, words) {
+    let best = Infinity;
+    const targets = words.filter((w) => /[א-ת]/.test(w) && w.length >= 4).map(snd);
+    for (const c of candidates(t)) {
+      for (const w of targets) {
+        const limit = w.length <= 4 ? 1 : 2;
+        const d = lev(c, w);
+        if (d <= limit && d < best) best = d;
+      }
+    }
+    return best;
+  }
+
+  function findFamily(t) {
+    if (has(t, FAMILY_WORDS.TT) || t.includes('מוגדלת') || t.includes('מוקטנת')) return 'TT';
+    for (const fam of [8, 7, 6, 5, 4, 3, 2]) if (has(t, FAMILY_WORDS[fam])) return fam;
+    for (const fam of [8, 7, 6, 5, 4, 3, 2]) if (hasWord(t, NUMBER_WORDS[fam])) return fam;
+    let bestFam = null;
+    let bestD = Infinity;
+    for (const fam of ['TT', 8, 7, 6, 5, 4, 3, 2]) {
+      const d = fuzzyDistance(t, FAMILY_WORDS[fam]);
+      if (d < bestD) { bestD = d; bestFam = fam; }
+    }
+    return bestFam;
+  }
+
+  function findQuality(t) {
+    const major = has(t, MAJOR_WORDS) || fuzzyDistance(t, MAJOR_WORDS) <= 1;
+    const minor = has(t, MINOR_WORDS) || fuzzyDistance(t, MINOR_WORDS) <= 1;
+    if (major && !minor) return 'M';
+    if (minor && !major) return 'm';
+    return null;
+  }
+
+  function familyToAnswer(fam, quality) {
+    if (fam === 'TT') return { type: 'answer', key: 'TT' };
+    if (fam === 4) return { type: 'answer', key: 'P4' };
+    if (fam === 5) return { type: 'answer', key: 'P5' };
+    if (fam === 8) return { type: 'answer', key: 'P8' };
+    if (quality) return { type: 'answer', key: `${quality}${fam}` };
+    return { type: 'needQuality', family: fam };
+  }
 
   /** מחזיר {type:'command',cmd} | {type:'answer',key} | {type:'needQuality',family} | null */
   function parse(transcripts) {
@@ -150,18 +241,8 @@
       const t = norm(raw);
       if (!t.trim()) continue;
       for (const [cmd, words] of Object.entries(COMMANDS)) if (hasWord(t, words)) return { type: 'command', cmd };
-      if (has(t, FAMILY_WORDS.TT) || t.includes('מוגדלת') || t.includes('מוקטנת')) return { type: 'answer', key: 'TT' };
-      const major = has(t, MAJOR_WORDS);
-      const minor = has(t, MINOR_WORDS);
-      for (const fam of [8, 7, 6, 5, 4, 3, 2]) {
-        if (!has(t, FAMILY_WORDS[fam])) continue;
-        if (fam === 4) return { type: 'answer', key: 'P4' };
-        if (fam === 5) return { type: 'answer', key: 'P5' };
-        if (fam === 8) return { type: 'answer', key: 'P8' };
-        if (major) return { type: 'answer', key: `M${fam}` };
-        if (minor) return { type: 'answer', key: `m${fam}` };
-        return { type: 'needQuality', family: fam };
-      }
+      const fam = findFamily(t);
+      if (fam !== null) return familyToAnswer(fam, findQuality(t));
     }
     return null;
   }
@@ -169,8 +250,8 @@
   function parseQuality(transcripts, family) {
     for (const raw of transcripts) {
       const t = norm(raw);
-      if (has(t, MAJOR_WORDS)) return `M${family}`;
-      if (has(t, MINOR_WORDS)) return `m${family}`;
+      const q = findQuality(t);
+      if (q) return `${q}${family}`;
       const full = parse([raw]);
       if (full && full.type === 'answer') return full.key;
     }
@@ -207,6 +288,21 @@
     src.stop(when + dur + 0.3);
   }
 
+  /** צפצוף קצר: "עכשיו אפשר לדבר" — אחרת ההברה הראשונה נחתכת. */
+  function beep() {
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.frequency.value = 880;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.18, t + 0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+    osc.connect(g).connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.15);
+  }
+
   /** מנגן מרווח עולה; מחזיר את המשך במילישניות. */
   function playInterval(rootMidi, semi) {
     const t = ctx.currentTime + 0.08;
@@ -224,6 +320,26 @@
     silentEl.loop = true;
     silentEl.setAttribute('playsinline', '');
     silentEl.play().catch(() => {});
+  }
+
+  // ---------------------------------------------- יומן "שמעתי ולא הבנתי"
+  const MISHEARD_KEY = 'talk-misheard';
+  function loadMisheard() {
+    try { return JSON.parse(localStorage.getItem(MISHEARD_KEY) || '[]'); } catch { return []; }
+  }
+  function renderMisheard() {
+    const list = document.getElementById('misheard');
+    list.textContent = '';
+    for (const text of loadMisheard()) {
+      const li = document.createElement('li');
+      li.textContent = text;
+      list.appendChild(li);
+    }
+  }
+  function logMisheard(text) {
+    const items = [text, ...loadMisheard().filter((t) => t !== text)].slice(0, 15);
+    try { localStorage.setItem(MISHEARD_KEY, JSON.stringify(items)); } catch { /* מצב פרטי */ }
+    renderMisheard();
   }
 
   // ------------------------------------------------------------- דיבור
@@ -268,6 +384,7 @@
       rec.continuous = false;
       rec.maxAlternatives = 5;
       activeRec = rec;
+      rec.onstart = () => beep();
       let latest = '';
       let finals = [];
       let error = null;
@@ -436,7 +553,9 @@
       const parsed = parse(texts);
 
       if (!parsed) {
-        await say(attempt < 2 ? (texts.length ? 'לא הבנתי. תגיד את שם המרווח, למשל קווינטה.' : 'לא שמעתי. נסה שוב.') : '');
+        if (texts.length) logMisheard(texts[0]);
+        const retry = attempt === 0 ? 'לא הבנתי, שוב?' : 'אפשר גם להגיד מספר. למשל חמש, זו קווינטה.';
+        await say(attempt < 2 ? (texts.length ? retry : 'לא שמעתי, שוב?') : '');
         continue;
       }
       if (parsed.type === 'command') {
@@ -456,6 +575,7 @@
         showHeard(second.texts[0] || '', false);
         answerKey = parseQuality(second.texts, parsed.family);
         if (answerKey) break;
+        if (second.texts.length) logMisheard(second.texts[0]);
         await say('לא הבנתי.');
         continue;
       }
@@ -565,6 +685,7 @@
   mainBtn.addEventListener('click', () => (state.running ? stop() : start()));
   document.querySelectorAll('.levels button').forEach((b) => b.addEventListener('click', () => setLevel(Number(b.dataset.level), false)));
   renderAnswers();
+  renderMisheard();
   updateScore();
   if (!Recognition) showError('unsupported');
 
