@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#10191A" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="שיחת מרווחים" />
+<title>שיחת מרווחים — אוזן הזהב</title>
+<style>
+  :root {
+    --bg: #10191a; --bg-2: #0e1626; --card: #191c23; --line: #2c313d;
+    --text: #e9e5dd; --dim: #b9bfca; --accent: #2dd4bf; --ok: #5fa968; --no: #d2544b;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+    color: var(--text);
+    background: linear-gradient(180deg, var(--bg), var(--bg-2));
+    display: flex; justify-content: center;
+    padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom));
+  }
+  main { width: 100%; max-width: 460px; display: flex; flex-direction: column; gap: 14px; }
+  h1 { margin: 0; font-size: 1.35rem; }
+  .sub { margin: 0; color: var(--dim); font-size: 0.9rem; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; }
+  #status { font-size: 1.25rem; font-weight: 700; min-height: 1.9em; }
+  #heard { color: var(--dim); min-height: 1.5em; font-size: 0.95rem; }
+  #heard b { color: var(--text); }
+  .score { display: flex; gap: 18px; font-variant-numeric: tabular-nums; color: var(--dim); }
+  .score b { color: var(--text); font-size: 1.1rem; }
+  .levels { display: flex; gap: 8px; }
+  .levels button { flex: 1; }
+  button {
+    font: inherit; color: var(--text); background: var(--card); border: 1px solid var(--line);
+    border-radius: 12px; padding: 10px 12px; cursor: pointer; min-height: 44px;
+  }
+  button.on { border-color: var(--accent); color: var(--accent); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  #main-btn {
+    font-size: 1.2rem; font-weight: 800; padding: 18px; border: none;
+    background: var(--accent); color: #062a25;
+  }
+  #main-btn.stop { background: var(--no); color: #fff; }
+  .answers { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .answers button { font-size: 0.85rem; padding: 8px 6px; }
+  .answers button.right { border-color: var(--ok); color: var(--ok); }
+  .answers button.wrong { border-color: var(--no); color: var(--no); }
+  #error { display: none; border-color: var(--no); color: #f0b4ae; }
+  #error.show { display: block; }
+  details { color: var(--dim); font-size: 0.85rem; }
+  .flash-ok #status { color: var(--ok); }
+  .flash-no #status { color: var(--no); }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>שיחת מרווחים</h1>
+    <p class="sub">אני משמיע מרווח, אתה אומר בקול מה שמעת, ואני עונה לך.</p>
+  </header>
+
+  <section class="card" aria-live="polite">
+    <div id="status">לחץ "התחל" כדי להתחיל</div>
+    <div id="heard"></div>
+  </section>
+
+  <div class="score card">
+    <span>נכון <b id="s-ok">0</b></span>
+    <span>מתוך <b id="s-total">0</b></span>
+    <span>ברצף <b id="s-streak">0</b></span>
+  </div>
+
+  <div class="levels" role="radiogroup" aria-label="רמה">
+    <button data-level="1" class="on">קל</button>
+    <button data-level="2">בינוני</button>
+    <button data-level="3">מלא</button>
+  </div>
+
+  <button id="main-btn" type="button">התחל</button>
+
+  <div id="error" class="card" role="alert"></div>
+
+  <details>
+    <summary>אפשר גם ללחוץ על תשובה (כשלא נוהגים)</summary>
+    <div class="answers" id="answers"></div>
+  </details>
+
+  <details>
+    <summary>מה אפשר להגיד</summary>
+    <p>שם המרווח: "טרצה גדולה", "קווינטה", "אוקטבה" (או "שלישית גדולה", "חמישית"...).<br />
+    "שוב" — להשמיע שוב · "לא יודע" — לשמוע את התשובה · "יותר קשה" / "יותר קל" — לשנות רמה · "עצור" — לסיים.</p>
+  </details>
+</main>
+
+<script>
+(() => {
+  // ---------------------------------------------------------------- מרווחים
+  const INTERVALS = [
+    { key: 'm2', semi: 1, name: 'סקונדה קטנה', ref: 'כמו הפתיחה של "מלתעות"' },
+    { key: 'M2', semi: 2, name: 'סקונדה גדולה', ref: 'כמו "דו-רה" ב"דו-רה-מי"' },
+    { key: 'm3', semi: 3, name: 'טרצה קטנה', ref: 'כמו הפתיחה של "גרינסליבס"' },
+    { key: 'M3', semi: 4, name: 'טרצה גדולה', ref: 'כמו הפתיחה של "When the Saints"' },
+    { key: 'P4', semi: 5, name: 'קוורטה', ref: 'כמו תחילת "הבה נגילה"' },
+    { key: 'TT', semi: 6, name: 'טריטון', ref: 'כמו "מא-רי-ה" מ"סיפור הפרברים"' },
+    { key: 'P5', semi: 7, name: 'קווינטה', ref: 'כמו הפתיחה של "מלחמת הכוכבים"' },
+    { key: 'm6', semi: 8, name: 'סקסטה קטנה', ref: 'כמו הפתיחה של "סיפור אהבה"' },
+    { key: 'M6', semi: 9, name: 'סקסטה גדולה', ref: 'כמו "My Bonnie"' },
+    { key: 'm7', semi: 10, name: 'ספטימה קטנה', ref: 'כמו "Somewhere" מ"סיפור הפרברים"' },
+    { key: 'M7', semi: 11, name: 'ספטימה גדולה', ref: 'כמו "Take on" ב-"Take On Me"' },
+    { key: 'P8', semi: 12, name: 'אוקטבה', ref: 'כמו "Somewhere" ב"מעבר לקשת"' },
+  ];
+  const BY_KEY = Object.fromEntries(INTERVALS.map((i) => [i.key, i]));
+  const LEVELS = {
+    1: ['M3', 'P4', 'P5', 'P8'],
+    2: ['M2', 'm3', 'M3', 'P4', 'P5', 'm6', 'M6', 'P8'],
+    3: INTERVALS.map((i) => i.key),
+  };
+
+  // ------------------------------------------------------ פירוש מה שנאמר
+  const FAMILY_WORDS = {
+    2: ['סקונדה', 'סקונד', 'שנייה', 'שניה'],
+    3: ['טרצה', 'טרצא', 'טרסה', 'שלישית'],
+    4: ['קוורטה', 'קווארטה', 'קוארטה', 'קוורט', 'רביעית'],
+    TT: ['טריטון', 'טרייטון', 'טריטונוס'],
+    5: ['קווינטה', 'קוינטה', 'קווינט', 'חמישית'],
+    6: ['סקסטה', 'סקסט', 'שישית'],
+    7: ['ספטימה', 'ספטים', 'שביעית'],
+    8: ['אוקטבה', 'אוקטבא', 'אוקטבות'],
+  };
+  const MAJOR_WORDS = ['גדולה', 'גדול', 'מז׳ור', "מז'ור", 'מאז׳ור', "מאז'ור", 'מזור', 'מז׳ורית', "מז'ורית"];
+  const MINOR_WORDS = ['קטנה', 'קטן', 'מינור', 'מינורית'];
+  const COMMANDS = {
+    stop: ['עצור', 'תעצור', 'סטופ', 'די', 'מספיק', 'סיים'],
+    repeat: ['שוב', 'עוד פעם', 'חזור', 'תחזור', 'עוד הפעם'],
+    reveal: ['לא יודע', 'לא יודעת', 'אין לי מושג', 'דלג', 'תגיד לי'],
+    harder: ['יותר קשה', 'קשה יותר', 'תעלה רמה'],
+    easier: ['יותר קל', 'קל יותר', 'תוריד רמה'],
+  };
+
+  const norm = (s) => ` ${String(s || '').toLowerCase().replace(/[.,!?;:"()\-–]/g, ' ').replace(/\s+/g, ' ').trim()} `;
+  const has = (text, words) => words.some((w) => text.includes(w));
+  // פקודות — רק כמילה שלמה ("די" לא יתפוס את "ידיים").
+  const hasWord = (text, words) => words.some((w) => text.includes(` ${w} `));
+
+  /** מחזיר {type:'command',cmd} | {type:'answer',key} | {type:'needQuality',family} | null */
+  function parse(transcripts) {
+    for (const raw of transcripts) {
+      const t = norm(raw);
+      if (!t.trim()) continue;
+      for (const [cmd, words] of Object.entries(COMMANDS)) if (hasWord(t, words)) return { type: 'command', cmd };
+      if (has(t, FAMILY_WORDS.TT) || t.includes('מוגדלת') || t.includes('מוקטנת')) return { type: 'answer', key: 'TT' };
+      const major = has(t, MAJOR_WORDS);
+      const minor = has(t, MINOR_WORDS);
+      for (const fam of [8, 7, 6, 5, 4, 3, 2]) {
+        if (!has(t, FAMILY_WORDS[fam])) continue;
+        if (fam === 4) return { type: 'answer', key: 'P4' };
+        if (fam === 5) return { type: 'answer', key: 'P5' };
+        if (fam === 8) return { type: 'answer', key: 'P8' };
+        if (major) return { type: 'answer', key: `M${fam}` };
+        if (minor) return { type: 'answer', key: `m${fam}` };
+        return { type: 'needQuality', family: fam };
+      }
+    }
+    return null;
+  }
+
+  function parseQuality(transcripts, family) {
+    for (const raw of transcripts) {
+      const t = norm(raw);
+      if (has(t, MAJOR_WORDS)) return `M${family}`;
+      if (has(t, MINOR_WORDS)) return `m${family}`;
+      const full = parse([raw]);
+      if (full && full.type === 'answer') return full.key;
+    }
+    return null;
+  }
+
+  // -------------------------------------------------------------- אודיו
+  const here = location.pathname.endsWith('/') || /\.[a-z0-9]+$/i.test(location.pathname)
+    ? location.href : `${location.href}/`;
+  const SAMPLE_BASE = new URL('../samples/piano/', here).href;
+  const SAMPLES = { 42: 'Fs2', 45: 'A2', 48: 'C3', 51: 'Ds3', 54: 'Fs3', 57: 'A3', 60: 'C4', 63: 'Ds4', 66: 'Fs4', 69: 'A4', 72: 'C5', 75: 'Ds5', 78: 'Fs5' };
+  let ctx = null;
+  const buffers = {};
+
+  async function loadSamples() {
+    await Promise.all(Object.entries(SAMPLES).map(async ([midi, file]) => {
+      const res = await fetch(`${SAMPLE_BASE}${file}.mp3`);
+      if (!res.ok) throw new Error(`sample ${file}: HTTP ${res.status}`);
+      buffers[midi] = await ctx.decodeAudioData(await res.arrayBuffer());
+    }));
+  }
+
+  function playNote(midi, when, dur = 1.5) {
+    const roots = Object.keys(buffers).map(Number);
+    const base = roots.reduce((a, b) => (Math.abs(b - midi) < Math.abs(a - midi) ? b : a));
+    const src = ctx.createBufferSource();
+    src.buffer = buffers[base];
+    src.playbackRate.value = 2 ** ((midi - base) / 12);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.9, when);
+    gain.gain.setTargetAtTime(0, when + dur - 0.35, 0.12);
+    src.connect(gain).connect(ctx.destination);
+    src.start(when);
+    src.stop(when + dur + 0.3);
+  }
+
+  /** מנגן מרווח עולה; מחזיר את המשך במילישניות. */
+  function playInterval(rootMidi, semi) {
+    const t = ctx.currentTime + 0.08;
+    playNote(rootMidi, t);
+    playNote(rootMidi + semi, t + 0.95);
+    return 2700;
+  }
+
+  // ספארי ב-iOS: תג <audio> פעיל מוציא את הדף מ"מצב שקט" של מתג ההשתקה.
+  const SILENT = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=';
+  let silentEl = null;
+  function unlockIOSAudio() {
+    if (silentEl) return;
+    silentEl = new Audio(SILENT);
+    silentEl.loop = true;
+    silentEl.setAttribute('playsinline', '');
+    silentEl.play().catch(() => {});
+  }
+
+  // ------------------------------------------------------------- דיבור
+  let hebrewVoice = null;
+  function pickVoice() {
+    const voices = window.speechSynthesis ? speechSynthesis.getVoices() : [];
+    hebrewVoice = voices.find((v) => v.lang === 'he-IL') || voices.find((v) => (v.lang || '').startsWith('he')) || null;
+  }
+  if (window.speechSynthesis) {
+    pickVoice();
+    speechSynthesis.onvoiceschanged = pickVoice;
+  }
+
+  function say(text) {
+    if (!window.speechSynthesis || !text) return Promise.resolve();
+    return new Promise((resolve) => {
+      const u = new SpeechSynthesisUtterance(text);
+      u.lang = 'he-IL';
+      if (hebrewVoice) u.voice = hebrewVoice;
+      const guard = setTimeout(resolve, Math.max(4000, text.length * 130));
+      const done = () => { clearTimeout(guard); resolve(); };
+      u.onend = done;
+      u.onerror = done;
+      speechSynthesis.speak(u);
+    });
+  }
+
+  const Recognition = window.SpeechRecognition || window.webkitSpeechRecognition || null;
+  let activeRec = null;
+
+  /**
+   * האזנה לניסיון אחד. ב-Safari של האייפון התוצאה הסופית מגיעה לפעמים רק
+   * אחרי stop(), אז: תוצאות ביניים נשמרות תוך כדי, ובתום הזמן עוצרים
+   * ומחכים עוד רגע לתוצאה לפני שמוותרים.
+   */
+  function listen(timeoutMs = 7000) {
+    return new Promise((resolve) => {
+      if (!Recognition) { resolve({ texts: [], error: 'unsupported' }); return; }
+      const rec = new Recognition();
+      rec.lang = 'he-IL';
+      rec.interimResults = true;
+      rec.continuous = false;
+      rec.maxAlternatives = 5;
+      activeRec = rec;
+      let latest = '';
+      let finals = [];
+      let error = null;
+      let settled = false;
+      let grace = null;
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        clearTimeout(grace);
+        if (activeRec === rec) activeRec = null;
+        const texts = finals.length ? finals : (latest ? [latest] : []);
+        resolve({ texts, error });
+      };
+      rec.onresult = (e) => {
+        let interim = '';
+        for (let i = 0; i < e.results.length; i++) {
+          const r = e.results[i];
+          if (r.isFinal) {
+            finals = Array.from(r).map((alt) => alt.transcript);
+          } else {
+            interim += r[0].transcript;
+          }
+        }
+        latest = finals[0] || interim || latest;
+        showHeard(latest, true);
+        if (finals.length) finish();
+      };
+      rec.onerror = (e) => {
+        error = e.error;
+        if (e.error !== 'no-speech') finish();
+      };
+      rec.onend = () => {
+        // עוד רגע קטן: לפעמים התוצאה הסופית מגיעה ממש אחרי onend.
+        grace = setTimeout(finish, 400);
+      };
+      const timer = setTimeout(() => {
+        try { rec.stop(); } catch { /* כבר נעצר */ }
+        grace = setTimeout(finish, 1500);
+      }, timeoutMs);
+      try { rec.start(); } catch { error = 'start-failed'; finish(); }
+    });
+  }
+
+  const MIC_ERRORS = {
+    unsupported: 'הדפדפן הזה לא תומך בזיהוי דיבור. פתח את הקישור ישירות ב-Safari (לא מתוך אפליקציה אחרת כמו וואטסאפ או Claude).',
+    'not-allowed': 'אין לאתר הרשאת מיקרופון. ב-Safari: לחץ על aA בשורת הכתובת ← הגדרות אתר ← מיקרופון ← "אפשר", ואז רענן. ובהגדרות האייפון ← Safari ← מיקרופון ← "שאל" או "אפשר".',
+    'service-not-allowed': 'זיהוי הדיבור כבוי במכשיר. בהגדרות האייפון ← כללי ← מקלדת ← הפעל את "הכתבה". (בדוק גם שהגדרות ← Siri מופעל.)',
+    'language-not-supported': 'המכשיר לא מזהה עברית בזיהוי דיבור באתר. בהגדרות ← כללי ← מקלדת ← שפות הכתבה: ודא שעברית מסומנת.',
+    'audio-capture': 'לא הצלחתי לגשת למיקרופון. אולי אפליקציה אחרת משתמשת בו (שיחה, הקלטה). סגור אותה ונסה שוב.',
+    network: 'אין חיבור לשירות זיהוי הדיבור. בדוק אינטרנט ונסה שוב.',
+    'start-failed': 'הדפדפן לא אישר להתחיל להאזין. לחץ "התחל" שוב.',
+  };
+
+  // ---------------------------------------------------------------- מסך
+  const $ = (id) => document.getElementById(id);
+  const statusEl = $('status');
+  const heardEl = $('heard');
+  const errorEl = $('error');
+  const mainBtn = $('main-btn');
+
+  function setStatus(text, flash) {
+    statusEl.textContent = text;
+    document.body.classList.toggle('flash-ok', flash === 'ok');
+    document.body.classList.toggle('flash-no', flash === 'no');
+  }
+  function showHeard(text, live) {
+    heardEl.innerHTML = text ? `${live ? 'שומע' : 'שמעתי'}: <b></b>` : '';
+    if (text) heardEl.querySelector('b').textContent = `"${text}"`;
+  }
+  function showError(code) {
+    const msg = MIC_ERRORS[code] || `תקלה בזיהוי הדיבור (${code}).`;
+    errorEl.textContent = `${msg}  [קוד: ${code}]`;
+    errorEl.classList.add('show');
+  }
+  function clearError() { errorEl.classList.remove('show'); }
+
+  // --------------------------------------------------------------- מצב
+  const state = { running: false, level: 1, ok: 0, total: 0, streak: 0, recent: [], current: null, root: 60, lastKey: null, runId: 0 };
+
+  function updateScore() {
+    $('s-ok').textContent = state.ok;
+    $('s-total').textContent = state.total;
+    $('s-streak').textContent = state.streak;
+  }
+
+  function setLevel(level, announce) {
+    state.level = Math.max(1, Math.min(3, level));
+    document.querySelectorAll('.levels button').forEach((b) => b.classList.toggle('on', Number(b.dataset.level) === state.level));
+    renderAnswers();
+    if (announce) return say(`רמה ${['', 'קלה', 'בינונית', 'מלאה'][state.level]}.`);
+    return Promise.resolve();
+  }
+
+  function renderAnswers() {
+    const box = $('answers');
+    box.textContent = '';
+    for (const key of LEVELS[state.level]) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = BY_KEY[key].name;
+      b.dataset.key = key;
+      b.addEventListener('click', () => {
+        tappedAnswer = key;
+        try { activeRec?.stop(); } catch { /* */ }
+      });
+      box.appendChild(b);
+    }
+  }
+  let tappedAnswer = null;
+
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  function pickInterval() {
+    const pool = LEVELS[state.level].filter((k) => k !== state.lastKey);
+    const key = pool[Math.floor(Math.random() * pool.length)];
+    state.lastKey = key;
+    state.current = BY_KEY[key];
+    state.root = 52 + Math.floor(Math.random() * 12);
+  }
+
+  async function playCurrent() {
+    setStatus('מקשיב... (משמיע מרווח)');
+    await wait(playInterval(state.root, state.current.semi));
+  }
+
+  // ----------------------------------------------------- לולאת השיחה
+  async function micCheck(runId) {
+    // ההאזנה הראשונה חייבת להתחיל עוד בתוך הלחיצה על "התחל" (בלי await
+    // לפניה) — ב-iOS ייתכן שהמיקרופון לא יאושר אם הבקשה מגיעה אחרי דיבור.
+    setStatus('🎤 בדיקת מיקרופון: תגיד "מוכן"');
+    for (let attempt = 0; attempt < 3; attempt++) {
+      if (runId !== state.runId) return false;
+      const { texts, error } = await listen(6000);
+      if (runId !== state.runId) return false;
+      if (error && error !== 'no-speech' && error !== 'aborted') { showError(error); return false; }
+      if (texts.length) {
+        showHeard(texts[0], false);
+        return true;
+      }
+      if (attempt < 2) {
+        await say('לא שמעתי כלום. תגיד "מוכן", קצת יותר חזק.');
+        setStatus('🎤 תגיד "מוכן"');
+      }
+    }
+    errorEl.textContent = 'המיקרופון פועל אבל לא קיבלתי שום מילה. בדוק שהמיקרופון לא מכוסה, ושב"הגדרות ← כללי ← מקלדת" ההכתבה מופעלת ועברית מסומנת בשפות ההכתבה.  [קוד: no-speech]';
+    errorEl.classList.add('show');
+    return false;
+  }
+
+  async function round(runId) {
+    pickInterval();
+    await playCurrent();
+    if (runId !== state.runId) return;
+    await say('מה שמעת?');
+
+    let answerKey = null;
+    for (let attempt = 0; attempt < 3 && runId === state.runId; attempt++) {
+      setStatus('🎤 מקשיב...');
+      tappedAnswer = null;
+      const { texts, error } = await listen(7000);
+      if (runId !== state.runId) return;
+      if (tappedAnswer) { answerKey = tappedAnswer; break; }
+      if (error && !['no-speech', 'aborted'].includes(error)) { showError(error); stop(); return; }
+      showHeard(texts[0] || '', false);
+      const parsed = parse(texts);
+
+      if (!parsed) {
+        await say(attempt < 2 ? (texts.length ? 'לא הבנתי. תגיד את שם המרווח, למשל קווינטה.' : 'לא שמעתי. נסה שוב.') : '');
+        continue;
+      }
+      if (parsed.type === 'command') {
+        if (parsed.cmd === 'stop') { await say('סיימנו. כל הכבוד!'); stop(); return; }
+        if (parsed.cmd === 'repeat') { await playCurrent(); attempt--; continue; }
+        if (parsed.cmd === 'reveal') { break; }
+        if (parsed.cmd === 'harder' || parsed.cmd === 'easier') {
+          await setLevel(state.level + (parsed.cmd === 'harder' ? 1 : -1), true);
+          return; // תרגיל חדש ברמה החדשה
+        }
+      }
+      if (parsed.type === 'needQuality') {
+        await say('גדולה או קטנה?');
+        setStatus('🎤 גדולה או קטנה?');
+        const second = await listen(5000);
+        if (runId !== state.runId) return;
+        showHeard(second.texts[0] || '', false);
+        answerKey = parseQuality(second.texts, parsed.family);
+        if (answerKey) break;
+        await say('לא הבנתי.');
+        continue;
+      }
+      if (parsed.type === 'answer') { answerKey = parsed.key; break; }
+    }
+    if (runId !== state.runId) return;
+    await judge(answerKey);
+  }
+
+  async function judge(answerKey) {
+    const right = state.current;
+    state.total += 1;
+    markAnswer(answerKey, right.key);
+    if (answerKey === right.key) {
+      state.ok += 1;
+      state.streak += 1;
+      state.recent.push(true);
+      updateScore();
+      setStatus(`נכון! ${right.name}`, 'ok');
+      await say(state.streak > 0 && state.streak % 5 === 0 ? `נכון! ${state.streak} ברצף!` : `נכון! ${right.name}.`);
+    } else {
+      state.streak = 0;
+      state.recent.push(false);
+      updateScore();
+      setStatus(`זו הייתה ${right.name}`, 'no');
+      if (answerKey && BY_KEY[answerKey]) {
+        await say(`לא. אמרת ${BY_KEY[answerKey].name}. ככה היא נשמעת:`);
+        await wait(playInterval(state.root, BY_KEY[answerKey].semi));
+        await say(`ומה ששמעת היה ${right.name}, ${right.ref}:`);
+      } else {
+        await say(`זו הייתה ${right.name}, ${right.ref}:`);
+      }
+      await wait(playInterval(state.root, right.semi));
+    }
+    state.recent = state.recent.slice(-10);
+    // עליית רמה אוטומטית: 9 מתוך 10 האחרונים נכונים.
+    if (state.level < 3 && state.recent.length === 10 && state.recent.filter(Boolean).length >= 9) {
+      state.recent = [];
+      await say('אתה שולט ברמה הזו. עולים רמה!');
+      await setLevel(state.level + 1, true);
+    }
+    await wait(500);
+  }
+
+  function markAnswer(answerKey, rightKey) {
+    document.querySelectorAll('#answers button').forEach((b) => {
+      b.classList.toggle('right', b.dataset.key === rightKey);
+      b.classList.toggle('wrong', b.dataset.key === answerKey && answerKey !== rightKey);
+    });
+  }
+
+  async function run(samplesReady) {
+    const runId = ++state.runId;
+    if (!(await micCheck(runId))) { if (runId === state.runId) stop(); return; }
+    try {
+      await samplesReady;
+    } catch (err) {
+      errorEl.textContent = `טעינת הצלילים נכשלה: ${err.message}`;
+      errorEl.classList.add('show');
+      stop();
+      return;
+    }
+    if (runId !== state.runId) return;
+    await say('מעולה, אני שומע אותך. אני משמיע מרווח, ואתה אומר מה שמעת.');
+    while (state.running && runId === state.runId) {
+      await round(runId);
+    }
+  }
+
+  // ---------------------------------------------------------- התחלה/עצירה
+  let wakeLock = null;
+  async function keepAwake() {
+    try { wakeLock = await navigator.wakeLock?.request('screen'); } catch { /* לא נתמך */ }
+  }
+  document.addEventListener('visibilitychange', () => {
+    if (state.running && document.visibilityState === 'visible') keepAwake();
+  });
+
+  async function start() {
+    clearError();
+    // הכל בתוך הלחיצה עצמה — ספארי מאשר אודיו ודיבור רק ממחוות משתמש.
+    unlockIOSAudio();
+    ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+    ctx.resume();
+    if (window.speechSynthesis) speechSynthesis.speak(new SpeechSynthesisUtterance(''));
+    state.running = true;
+    mainBtn.textContent = 'עצור';
+    mainBtn.classList.add('stop');
+    keepAwake();
+    const samplesReady = Object.keys(buffers).length ? Promise.resolve() : loadSamples();
+    samplesReady.catch(() => {}); // השגיאה מטופלת ב-run, אחרי בדיקת המיקרופון
+    run(samplesReady); // בלי await לפני — ההאזנה הראשונה מתחילה עוד בתוך הלחיצה
+  }
+
+  function stop() {
+    state.running = false;
+    state.runId += 1;
+    try { activeRec?.abort(); } catch { /* */ }
+    if (window.speechSynthesis) speechSynthesis.cancel();
+    wakeLock?.release?.().catch(() => {});
+    wakeLock = null;
+    mainBtn.textContent = 'התחל';
+    mainBtn.classList.remove('stop');
+    if (!errorEl.classList.contains('show')) setStatus('עצרנו. לחץ "התחל" להמשיך');
+  }
+
+  mainBtn.addEventListener('click', () => (state.running ? stop() : start()));
+  document.querySelectorAll('.levels button').forEach((b) => b.addEventListener('click', () => setLevel(Number(b.dataset.level), false)));
+  renderAnswers();
+  updateScore();
+  if (!Recognition) showError('unsupported');
+
+  // חשיפה לבדיקות אוטומטיות בלבד.
+  window.__talk = { parse, parseQuality, state };
+})();
+</script>
+</body>
+</html>
