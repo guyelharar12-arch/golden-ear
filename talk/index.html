@@ -137,30 +137,18 @@
   const rf = (i) => (LANG === 'en' ? i.refEn : i.ref);
   const T = {
     he: {
-      micCheck: '🎤 בדיקת מיקרופון: תגיד "מוכן"', sayReady: '🎤 תגיד "מוכן"',
-      notHeardMic: 'לא שמעתי כלום. תגיד "מוכן", קצת יותר חזק.',
-      greet: 'מעולה, אני שומע אותך. אני משמיע מרווח, ואתה אומר מה שמעת.',
-      playing: 'משמיע מרווח...', listening: '🎤 מקשיב...', whatHeard: 'מה שמעת?',
-      retry1: 'לא הבנתי, שוב?', retry2: 'תגיד את המספר, למשל חמישית, או שלישית גדולה.', notHeard: 'לא שמעתי, שוב?',
-      done: 'סיימנו. כל הכבוד!', majorMinor: 'גדולה או קטנה?', didntGet: 'לא הבנתי.',
-      correct: (n) => `נכון! ${n}.`, streak: (k) => `נכון! ${k} ברצף!`, correctStatus: (n) => `נכון! ${n}`,
-      wrongStatus: (n) => `זו הייתה ${n}`,
-      youSaid: (n) => `לא. אמרת ${n}. ככה היא נשמעת:`,
-      andItWas: (n, r) => `ומה ששמעת היה ${n}, ${r}:`, itWas: (n, r) => `זו הייתה ${n}, ${r}:`,
-      levelUp: 'אתה שולט ברמה הזו. עולים רמה!', level: (k) => `רמה ${['', 'קלה', 'בינונית', 'מלאה'][k]}.`,
+      starting: 'מתחילים...', playing: 'משמיע...', listening: '🎤 מקשיב...', again: 'לא הבנתי — שוב',
+      majorMinor: 'גדולה או קטנה?',
+      correct: 'נכון', wrong: (n) => `לא, ${n}`,
+      correctStatus: (n) => `נכון! ${n}`, wrongStatus: (n, r) => `זו הייתה ${n} — ${r}`,
+      level: (k) => `רמה: ${['', 'קלה', 'בינונית', 'מלאה'][k]}`,
     },
     en: {
-      micCheck: '🎤 Mic check: say "ready"', sayReady: '🎤 Say "ready"',
-      notHeardMic: "I didn't hear anything. Say \"ready\", a bit louder.",
-      greet: "Great, I can hear you. I'll play an interval, and you tell me what you heard.",
-      playing: 'Playing an interval...', listening: '🎤 Listening...', whatHeard: 'What did you hear?',
-      retry1: 'Sorry, again?', retry2: 'Say it like: perfect fifth, or major third.', notHeard: "I didn't hear you. Again?",
-      done: 'Done. Great job!', majorMinor: 'Major or minor?', didntGet: "I didn't get that.",
-      correct: (n) => `Correct! ${n}.`, streak: (k) => `Correct! ${k} in a row!`, correctStatus: (n) => `Correct! ${n}`,
-      wrongStatus: (n) => `It was a ${n}`,
-      youSaid: (n) => `No. You said ${n}. This is how it sounds:`,
-      andItWas: (n, r) => `And what you heard was a ${n}, ${r}:`, itWas: (n, r) => `That was a ${n}, ${r}:`,
-      levelUp: "You've got this level. Leveling up!", level: (k) => `Level: ${['', 'easy', 'medium', 'full'][k]}.`,
+      starting: 'Starting...', playing: 'Playing...', listening: '🎤 Listening...', again: "Didn't catch that — again",
+      majorMinor: 'Major or minor?',
+      correct: 'Correct', wrong: (n) => `No, ${n}`,
+      correctStatus: (n) => `Correct! ${n}`, wrongStatus: (n, r) => `It was a ${n} — ${r}`,
+      level: (k) => `Level: ${['', 'easy', 'medium', 'full'][k]}`,
     },
   };
   const tr = () => T[LANG];
@@ -376,6 +364,21 @@
     osc.stop(t + 0.15);
   }
 
+  /** טון נמוך קצר: "לא הבנתי" — בלי מילים. */
+  function lowBeep() {
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.frequency.value = 220;
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(0.22, t + 0.02);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25);
+    osc.connect(g).connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.3);
+  }
+
   /** מנגן מרווח עולה; מחזיר את המשך במילישניות. */
   function playInterval(rootMidi, semi) {
     const t = ctx.currentTime + 0.08;
@@ -546,12 +549,10 @@
     $('s-streak').textContent = state.streak;
   }
 
-  function setLevel(level, announce) {
+  function setLevel(level) {
     state.level = Math.max(1, Math.min(3, level));
     document.querySelectorAll('[data-level]').forEach((b) => b.classList.toggle('on', Number(b.dataset.level) === state.level));
     renderAnswers();
-    if (announce) return say(tr().level(state.level));
-    return Promise.resolve();
   }
 
   function renderAnswers() {
@@ -587,37 +588,40 @@
   }
 
   // ----------------------------------------------------- לולאת השיחה
-  async function micCheck(runId) {
-    // ההאזנה הראשונה חייבת להתחיל עוד בתוך הלחיצה על "התחל" (בלי await
-    // לפניה) — ב-iOS ייתכן שהמיקרופון לא יאושר אם הבקשה מגיעה אחרי דיבור.
-    setStatus(tr().micCheck);
-    for (let attempt = 0; attempt < 3; attempt++) {
-      if (runId !== state.runId) return false;
-      const { texts, error } = await listen(6000);
-      if (runId !== state.runId) return false;
-      if (error && error !== 'no-speech' && error !== 'aborted') { showError(error); return false; }
-      if (texts.length) {
-        showHeard(texts[0], false);
-        return true;
-      }
-      if (attempt < 2) {
-        await say(tr().notHeardMic);
-        setStatus(tr().sayReady);
-      }
-    }
-    errorEl.textContent = 'המיקרופון פועל אבל לא קיבלתי שום מילה. בדוק שהמיקרופון לא מכוסה, ושב"הגדרות ← כללי ← מקלדת" ההכתבה מופעלת ועברית מסומנת בשפות ההכתבה.  [קוד: no-speech]';
-    errorEl.classList.add('show');
-    return false;
+  // בלי הקדמות ובלי קריינות: מרווח → צפצוף → תשובה → "נכון" / "לא, X".
+
+  /**
+   * פותח את המיקרופון לרגע ומיד סוגר, עוד בתוך הלחיצה על "התחל" — כדי
+   * ש-iOS יבקש ויאשר הרשאה עכשיו, ולא באמצע (שם הוא עלול לסרב).
+   */
+  function primeMic() {
+    return new Promise((resolve) => {
+      if (!Recognition) { resolve('unsupported'); return; }
+      const rec = new Recognition();
+      rec.lang = SPEECH_LANG[LANG];
+      let done = false;
+      const finish = (err) => {
+        if (done) return;
+        done = true;
+        clearTimeout(timer);
+        try { rec.abort(); } catch { /* */ }
+        resolve(err);
+      };
+      rec.onstart = () => finish(null);
+      rec.onerror = (e) => finish(['aborted', 'no-speech'].includes(e.error) ? null : e.error);
+      const timer = setTimeout(() => finish(null), 15000);
+      try { rec.start(); } catch { finish('start-failed'); }
+    });
   }
 
   async function round(runId) {
     pickInterval();
     await playCurrent();
     if (runId !== state.runId) return;
-    await say(tr().whatHeard);
 
     let answerKey = null;
-    for (let attempt = 0; attempt < 3 && runId === state.runId; attempt++) {
+    let misses = 0;
+    while (runId === state.runId) {
       setStatus(tr().listening);
       tappedAnswer = null;
       const { texts, error } = await listen(7000);
@@ -625,24 +629,20 @@
       if (tappedAnswer) { answerKey = tappedAnswer; break; }
       if (error && !['no-speech', 'aborted'].includes(error)) { showError(error); stop(); return; }
       showHeard(texts[0] || '', false);
-      const parsed = parse(texts);
+      let parsed = parse(texts);
 
-      if (!parsed) {
-        if (texts.length) logMisheard(texts[0]);
-        const retry = attempt === 0 ? tr().retry1 : tr().retry2;
-        await say(attempt < 2 ? (texts.length ? retry : tr().notHeard) : '');
-        continue;
-      }
-      if (parsed.type === 'command') {
-        if (parsed.cmd === 'stop') { await say(tr().done); stop(); return; }
-        if (parsed.cmd === 'repeat') { await playCurrent(); attempt--; continue; }
-        if (parsed.cmd === 'reveal') { break; }
+      if (parsed && parsed.type === 'command') {
+        if (parsed.cmd === 'stop') { stop(); return; }
+        if (parsed.cmd === 'repeat') { await playCurrent(); continue; }
+        if (parsed.cmd === 'reveal') break;
         if (parsed.cmd === 'harder' || parsed.cmd === 'easier') {
-          await setLevel(state.level + (parsed.cmd === 'harder' ? 1 : -1), true);
+          setLevel(state.level + (parsed.cmd === 'harder' ? 1 : -1));
+          setStatus(tr().level(state.level));
+          await wait(600);
           return; // תרגיל חדש ברמה החדשה
         }
       }
-      if (parsed.type === 'needQuality') {
+      if (parsed && parsed.type === 'needQuality') {
         await say(tr().majorMinor);
         setStatus(`🎤 ${tr().majorMinor}`);
         const second = await listen(5000);
@@ -651,10 +651,16 @@
         answerKey = parseQuality(second.texts, parsed.family);
         if (answerKey) break;
         if (second.texts.length) logMisheard(second.texts[0]);
-        await say(tr().didntGet);
-        continue;
+        parsed = null;
       }
-      if (parsed.type === 'answer') { answerKey = parsed.key; break; }
+      if (parsed && parsed.type === 'answer') { answerKey = parsed.key; break; }
+
+      if (texts.length) logMisheard(texts[0]);
+      misses += 1;
+      if (misses >= 3) break;
+      setStatus(tr().again);
+      lowBeep();
+      await wait(350);
     }
     if (runId !== state.runId) return;
     await judge(answerKey);
@@ -670,29 +676,22 @@
       state.recent.push(true);
       updateScore();
       setStatus(tr().correctStatus(nm(right)), 'ok');
-      await say(state.streak > 0 && state.streak % 5 === 0 ? tr().streak(state.streak) : tr().correct(nm(right)));
+      await say(tr().correct);
     } else {
       state.streak = 0;
       state.recent.push(false);
       updateScore();
-      setStatus(tr().wrongStatus(nm(right)), 'no');
-      if (answerKey && BY_KEY[answerKey]) {
-        await say(tr().youSaid(nm(BY_KEY[answerKey])));
-        await wait(playInterval(state.root, BY_KEY[answerKey].semi));
-        await say(tr().andItWas(nm(right), rf(right)));
-      } else {
-        await say(tr().itWas(nm(right), rf(right)));
-      }
+      setStatus(tr().wrongStatus(nm(right), rf(right)), 'no');
+      await say(answerKey ? tr().wrong(nm(right)) : nm(right));
       await wait(playInterval(state.root, right.semi));
     }
     state.recent = state.recent.slice(-10);
-    // עליית רמה אוטומטית: 9 מתוך 10 האחרונים נכונים.
+    // עליית רמה אוטומטית (בשקט): 9 מתוך 10 האחרונים נכונים.
     if (state.level < 3 && state.recent.length === 10 && state.recent.filter(Boolean).length >= 9) {
       state.recent = [];
-      await say(tr().levelUp);
-      await setLevel(state.level + 1, true);
+      setLevel(state.level + 1);
     }
-    await wait(500);
+    await wait(400);
   }
 
   function markAnswer(answerKey, rightKey) {
@@ -704,7 +703,10 @@
 
   async function run(samplesReady) {
     const runId = ++state.runId;
-    if (!(await micCheck(runId))) { if (runId === state.runId) stop(); return; }
+    setStatus(tr().starting);
+    const micError = await primeMic(); // בלי await לפני — עדיין בתוך הלחיצה
+    if (runId !== state.runId) return;
+    if (micError) { showError(micError); stop(); return; }
     try {
       await samplesReady;
     } catch (err) {
@@ -713,8 +715,6 @@
       stop();
       return;
     }
-    if (runId !== state.runId) return;
-    await say(tr().greet);
     while (state.running && runId === state.runId) {
       await round(runId);
     }
