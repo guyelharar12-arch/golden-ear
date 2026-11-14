@@ -72,6 +72,11 @@
     <span>ברצף <b id="s-streak">0</b></span>
   </div>
 
+  <div class="levels" role="radiogroup" aria-label="שפה">
+    <button data-lang="he" class="on">עברית</button>
+    <button data-lang="en">English</button>
+  </div>
+
   <div class="levels" role="radiogroup" aria-label="רמה">
     <button data-level="1" class="on">קל</button>
     <button data-level="2">בינוני</button>
@@ -89,7 +94,10 @@
 
   <details>
     <summary>מה אפשר להגיד</summary>
-    <p>המרווח כמספר: "שנייה גדולה", "שלישית קטנה", "רביעית", "חמישית", "שישית גדולה", "שביעית קטנה", "אוקטבה", "טריטון".<br />
+    <p data-help="en" hidden>Say the interval: "minor second", "major third", "perfect fourth", "tritone", "perfect fifth", "minor sixth", "major seventh", "octave". Short forms work too ("fifth", "major 3rd", "five").<br />
+    Speak after the beep.<br />
+    "again" — replay · "I don't know" — hear the answer · "harder" / "easier" — change level · "stop" — finish.</p>
+    <p data-help="he">המרווח כמספר: "שנייה גדולה", "שלישית קטנה", "רביעית", "חמישית", "שישית גדולה", "שביעית קטנה", "אוקטבה", "טריטון".<br />
     עובד גם בקצרה ("חמש", "שלוש גדולה") וגם בשמות הישנים ("קווינטה", "טרצה גדולה").<br />
     דבר אחרי הצפצוף.<br />
     "שוב" — להשמיע שוב · "לא יודע" — לשמוע את התשובה · "יותר קשה" / "יותר קל" — לשנות רמה · "עצור" — לסיים.</p>
@@ -106,20 +114,56 @@
 (() => {
   // ---------------------------------------------------------------- מרווחים
   const INTERVALS = [
-    { key: 'm2', semi: 1, name: 'שנייה קטנה', ref: 'כמו הפתיחה של "מלתעות"' },
-    { key: 'M2', semi: 2, name: 'שנייה גדולה', ref: 'כמו "דו-רה" ב"דו-רה-מי"' },
-    { key: 'm3', semi: 3, name: 'שלישית קטנה', ref: 'כמו הפתיחה של "גרינסליבס"' },
-    { key: 'M3', semi: 4, name: 'שלישית גדולה', ref: 'כמו הפתיחה של "When the Saints"' },
-    { key: 'P4', semi: 5, name: 'רביעית', ref: 'כמו תחילת "הבה נגילה"' },
-    { key: 'TT', semi: 6, name: 'טריטון', ref: 'כמו "מא-רי-ה" מ"סיפור הפרברים"' },
-    { key: 'P5', semi: 7, name: 'חמישית', ref: 'כמו הפתיחה של "מלחמת הכוכבים"' },
-    { key: 'm6', semi: 8, name: 'שישית קטנה', ref: 'כמו הפתיחה של "סיפור אהבה"' },
-    { key: 'M6', semi: 9, name: 'שישית גדולה', ref: 'כמו "My Bonnie"' },
-    { key: 'm7', semi: 10, name: 'שביעית קטנה', ref: 'כמו "Somewhere" מ"סיפור הפרברים"' },
-    { key: 'M7', semi: 11, name: 'שביעית גדולה', ref: 'כמו "Take on" ב-"Take On Me"' },
-    { key: 'P8', semi: 12, name: 'אוקטבה', ref: 'כמו "Somewhere" ב"מעבר לקשת"' },
+    { key: 'm2', semi: 1, name: 'שנייה קטנה', ref: 'כמו הפתיחה של "מלתעות"', en: 'minor second', refEn: 'like the "Jaws" theme' },
+    { key: 'M2', semi: 2, name: 'שנייה גדולה', ref: 'כמו "דו-רה" ב"דו-רה-מי"', en: 'major second', refEn: 'like "Happy Birthday"' },
+    { key: 'm3', semi: 3, name: 'שלישית קטנה', ref: 'כמו הפתיחה של "גרינסליבס"', en: 'minor third', refEn: 'like "Greensleeves"' },
+    { key: 'M3', semi: 4, name: 'שלישית גדולה', ref: 'כמו הפתיחה של "When the Saints"', en: 'major third', refEn: 'like "When the Saints Go Marching In"' },
+    { key: 'P4', semi: 5, name: 'רביעית', ref: 'כמו תחילת "הבה נגילה"', en: 'perfect fourth', refEn: 'like "Here Comes the Bride"' },
+    { key: 'TT', semi: 6, name: 'טריטון', ref: 'כמו "מא-רי-ה" מ"סיפור הפרברים"', en: 'tritone', refEn: 'like "Maria" from West Side Story' },
+    { key: 'P5', semi: 7, name: 'חמישית', ref: 'כמו הפתיחה של "מלחמת הכוכבים"', en: 'perfect fifth', refEn: 'like the "Star Wars" theme' },
+    { key: 'm6', semi: 8, name: 'שישית קטנה', ref: 'כמו הפתיחה של "סיפור אהבה"', en: 'minor sixth', refEn: 'like the "Love Story" theme' },
+    { key: 'M6', semi: 9, name: 'שישית גדולה', ref: 'כמו "My Bonnie"', en: 'major sixth', refEn: 'like "My Bonnie"' },
+    { key: 'm7', semi: 10, name: 'שביעית קטנה', ref: 'כמו "Somewhere" מ"סיפור הפרברים"', en: 'minor seventh', refEn: 'like "Somewhere" from West Side Story' },
+    { key: 'M7', semi: 11, name: 'שביעית גדולה', ref: 'כמו "Take on" ב-"Take On Me"', en: 'major seventh', refEn: 'like "Take On Me"' },
+    { key: 'P8', semi: 12, name: 'אוקטבה', ref: 'כמו "Somewhere" ב"מעבר לקשת"', en: 'octave', refEn: 'like "Somewhere Over the Rainbow"' },
   ];
   const BY_KEY = Object.fromEntries(INTERVALS.map((i) => [i.key, i]));
+
+  // ------------------------------------------------------------------ שפה
+  // באנגלית זיהוי הדיבור של אפל מדויק יותר, והשמות ("major third") הם
+  // מילים נפוצות — אז אפשר לבחור, והבחירה נשמרת.
+  let LANG = (() => { try { return localStorage.getItem('talk-lang') || 'he'; } catch { return 'he'; } })();
+  const nm = (i) => (LANG === 'en' ? i.en : i.name);
+  const rf = (i) => (LANG === 'en' ? i.refEn : i.ref);
+  const T = {
+    he: {
+      micCheck: '🎤 בדיקת מיקרופון: תגיד "מוכן"', sayReady: '🎤 תגיד "מוכן"',
+      notHeardMic: 'לא שמעתי כלום. תגיד "מוכן", קצת יותר חזק.',
+      greet: 'מעולה, אני שומע אותך. אני משמיע מרווח, ואתה אומר מה שמעת.',
+      playing: 'משמיע מרווח...', listening: '🎤 מקשיב...', whatHeard: 'מה שמעת?',
+      retry1: 'לא הבנתי, שוב?', retry2: 'תגיד את המספר, למשל חמישית, או שלישית גדולה.', notHeard: 'לא שמעתי, שוב?',
+      done: 'סיימנו. כל הכבוד!', majorMinor: 'גדולה או קטנה?', didntGet: 'לא הבנתי.',
+      correct: (n) => `נכון! ${n}.`, streak: (k) => `נכון! ${k} ברצף!`, correctStatus: (n) => `נכון! ${n}`,
+      wrongStatus: (n) => `זו הייתה ${n}`,
+      youSaid: (n) => `לא. אמרת ${n}. ככה היא נשמעת:`,
+      andItWas: (n, r) => `ומה ששמעת היה ${n}, ${r}:`, itWas: (n, r) => `זו הייתה ${n}, ${r}:`,
+      levelUp: 'אתה שולט ברמה הזו. עולים רמה!', level: (k) => `רמה ${['', 'קלה', 'בינונית', 'מלאה'][k]}.`,
+    },
+    en: {
+      micCheck: '🎤 Mic check: say "ready"', sayReady: '🎤 Say "ready"',
+      notHeardMic: "I didn't hear anything. Say \"ready\", a bit louder.",
+      greet: "Great, I can hear you. I'll play an interval, and you tell me what you heard.",
+      playing: 'Playing an interval...', listening: '🎤 Listening...', whatHeard: 'What did you hear?',
+      retry1: 'Sorry, again?', retry2: 'Say it like: perfect fifth, or major third.', notHeard: "I didn't hear you. Again?",
+      done: 'Done. Great job!', majorMinor: 'Major or minor?', didntGet: "I didn't get that.",
+      correct: (n) => `Correct! ${n}.`, streak: (k) => `Correct! ${k} in a row!`, correctStatus: (n) => `Correct! ${n}`,
+      wrongStatus: (n) => `It was a ${n}`,
+      youSaid: (n) => `No. You said ${n}. This is how it sounds:`,
+      andItWas: (n, r) => `And what you heard was a ${n}, ${r}:`, itWas: (n, r) => `That was a ${n}, ${r}:`,
+      levelUp: "You've got this level. Leveling up!", level: (k) => `Level: ${['', 'easy', 'medium', 'full'][k]}.`,
+    },
+  };
+  const tr = () => T[LANG];
   const LEVELS = {
     1: ['M3', 'P4', 'P5', 'P8'],
     2: ['M2', 'm3', 'M3', 'P4', 'P5', 'm6', 'M6', 'P8'],
@@ -130,7 +174,7 @@
   // זיהוי הדיבור כותב מונחים נדירים כמו "קווינטה" בכל מיני צורות ("כווינטה",
   // "קווין טה"...), אז ההתאמה סלחנית: קודם התאמה מדויקת, אחר כך מספרים
   // ("חמש" = קווינטה), ובסוף התאמה "לפי צליל" שמתעלמת מהבדלי כתיב.
-  const FAMILY_WORDS = {
+  const FAMILY_WORDS_HE = {
     2: ['שנייה', 'שניה', 'סקונדה', 'סקונד', 'second'],
     3: ['טרצה', 'טרצא', 'טרסה', 'שלישית', 'third'],
     4: ['קוורטה', 'קווארטה', 'קוארטה', 'קוורט', 'רביעית', 'fourth'],
@@ -141,19 +185,46 @@
     8: ['אוקטבה', 'אוקטבא', 'אוקטבות', 'שמינית', 'octave'],
   };
   // מספר = מספר המרווח ("חמש" = קווינטה, "שלוש גדולה" = טרצה גדולה).
-  const NUMBER_WORDS = {
+  const NUMBER_WORDS_HE = {
     2: ['שתיים', 'שתים', '2'], 3: ['שלוש', 'שלושה', '3'], 4: ['ארבע', 'ארבעה', '4'],
     5: ['חמש', 'חמישה', '5'], 6: ['שש', 'שישה', '6'], 7: ['שבע', 'שבעה', '7'], 8: ['שמונה', '8'],
   };
-  const MAJOR_WORDS = ['גדולה', 'גדול', 'מז׳ור', "מז'ור", 'מאז׳ור', "מאז'ור", 'מזור', 'מז׳ורית', "מז'ורית", 'מייג׳ור', "מייג'ור", 'major'];
-  const MINOR_WORDS = ['קטנה', 'קטן', 'מינור', 'מינורית', 'מיינור', 'minor'];
-  const COMMANDS = {
+  const MAJOR_WORDS_HE = ['גדולה', 'גדול', 'מז׳ור', "מז'ור", 'מאז׳ור', "מאז'ור", 'מזור', 'מז׳ורית', "מז'ורית", 'מייג׳ור', "מייג'ור", 'major'];
+  const MINOR_WORDS_HE = ['קטנה', 'קטן', 'מינור', 'מינורית', 'מיינור', 'minor'];
+  const COMMANDS_HE = {
     stop: ['עצור', 'תעצור', 'סטופ', 'די', 'מספיק', 'סיים', 'stop'],
     repeat: ['שוב', 'עוד פעם', 'חזור', 'תחזור', 'עוד הפעם', 'again'],
     reveal: ['לא יודע', 'לא יודעת', 'אין לי מושג', 'דלג', 'תגיד לי'],
     harder: ['יותר קשה', 'קשה יותר', 'תעלה רמה'],
     easier: ['יותר קל', 'קל יותר', 'תוריד רמה'],
   };
+
+  const WORDS = {
+    he: { family: FAMILY_WORDS_HE, number: NUMBER_WORDS_HE, major: MAJOR_WORDS_HE, minor: MINOR_WORDS_HE, commands: COMMANDS_HE },
+    en: {
+      family: {
+        2: ['second', '2nd', 'seconds'],
+        3: ['third', '3rd', 'thirds'],
+        4: ['fourth', '4th', 'forth', 'fourths'],
+        TT: ['tritone', 'tri tone', 'try tone', 'triton', 'augmented fourth', 'diminished fifth'],
+        5: ['fifth', '5th', 'fifths', 'fits', 'fist', 'fift'],
+        6: ['sixth', '6th', 'sixths'],
+        7: ['seventh', '7th', 'sevenths'],
+        8: ['octave', 'octaves', 'eighth', '8th'],
+      },
+      number: { 2: ['two', '2'], 3: ['three', '3'], 4: ['four', '4'], 5: ['five', '5'], 6: ['six', '6'], 7: ['seven', '7'], 8: ['eight', '8'] },
+      major: ['major', 'mayor', 'majors'],
+      minor: ['minor', 'miner', 'minors'],
+      commands: {
+        stop: ['stop', 'quit', 'enough', 'finish'],
+        repeat: ['again', 'repeat', 'one more time', 'replay'],
+        reveal: ["don't know", 'don’t know', 'dont know', 'no idea', 'skip', 'tell me'],
+        harder: ['harder', 'more difficult', 'level up', 'next level'],
+        easier: ['easier', 'level down', 'too hard'],
+      },
+    },
+  };
+  const W = () => WORDS[LANG];
 
   const norm = (s) => ` ${String(s || '').toLowerCase().replace(/[.,!?;:"()\-–]/g, ' ').replace(/\s+/g, ' ').trim()} `;
   const has = (text, words) => words.some((w) => text.includes(w));
@@ -194,7 +265,7 @@
   /** המילה הכי קרובה ברשימה, אם היא קרובה מספיק. מחזיר מרחק או Infinity. */
   function fuzzyDistance(t, words) {
     let best = Infinity;
-    const targets = words.filter((w) => /[א-ת]/.test(w) && w.length >= 4).map(snd);
+    const targets = words.filter((w) => /[א-תa-z]/.test(w) && w.length >= 4).map(snd);
     for (const c of candidates(t)) {
       for (const w of targets) {
         const limit = w.length <= 4 ? 0 : w.length <= 6 ? 1 : 2;
@@ -206,6 +277,7 @@
   }
 
   function findFamily(t) {
+    const { family: FAMILY_WORDS, number: NUMBER_WORDS } = W();
     if (has(t, FAMILY_WORDS.TT) || t.includes('מוגדלת') || t.includes('מוקטנת')) return 'TT';
     for (const fam of [8, 7, 6, 5, 4, 3, 2]) if (has(t, FAMILY_WORDS[fam])) return fam;
     for (const fam of [8, 7, 6, 5, 4, 3, 2]) if (hasWord(t, NUMBER_WORDS[fam])) return fam;
@@ -219,6 +291,7 @@
   }
 
   function findQuality(t) {
+    const { major: MAJOR_WORDS, minor: MINOR_WORDS } = W();
     const major = has(t, MAJOR_WORDS) || fuzzyDistance(t, MAJOR_WORDS) <= 1;
     const minor = has(t, MINOR_WORDS) || fuzzyDistance(t, MINOR_WORDS) <= 1;
     if (major && !minor) return 'M';
@@ -240,7 +313,7 @@
     for (const raw of transcripts) {
       const t = norm(raw);
       if (!t.trim()) continue;
-      for (const [cmd, words] of Object.entries(COMMANDS)) if (hasWord(t, words)) return { type: 'command', cmd };
+      for (const [cmd, words] of Object.entries(W().commands)) if (hasWord(t, words)) return { type: 'command', cmd };
       const fam = findFamily(t);
       if (fam !== null) return familyToAnswer(fam, findQuality(t));
     }
@@ -343,10 +416,12 @@
   }
 
   // ------------------------------------------------------------- דיבור
-  let hebrewVoice = null;
+  const SPEECH_LANG = { he: 'he-IL', en: 'en-US' };
+  const voiceFor = { he: null, en: null };
   function pickVoice() {
     const voices = window.speechSynthesis ? speechSynthesis.getVoices() : [];
-    hebrewVoice = voices.find((v) => v.lang === 'he-IL') || voices.find((v) => (v.lang || '').startsWith('he')) || null;
+    voiceFor.he = voices.find((v) => v.lang === 'he-IL') || voices.find((v) => (v.lang || '').startsWith('he')) || null;
+    voiceFor.en = voices.find((v) => v.lang === 'en-US' && v.localService) || voices.find((v) => v.lang === 'en-US') || null;
   }
   if (window.speechSynthesis) {
     pickVoice();
@@ -357,8 +432,8 @@
     if (!window.speechSynthesis || !text) return Promise.resolve();
     return new Promise((resolve) => {
       const u = new SpeechSynthesisUtterance(text);
-      u.lang = 'he-IL';
-      if (hebrewVoice) u.voice = hebrewVoice;
+      u.lang = SPEECH_LANG[LANG];
+      if (voiceFor[LANG]) u.voice = voiceFor[LANG];
       const guard = setTimeout(resolve, Math.max(4000, text.length * 130));
       const done = () => { clearTimeout(guard); resolve(); };
       u.onend = done;
@@ -379,7 +454,7 @@
     return new Promise((resolve) => {
       if (!Recognition) { resolve({ texts: [], error: 'unsupported' }); return; }
       const rec = new Recognition();
-      rec.lang = 'he-IL';
+      rec.lang = SPEECH_LANG[LANG];
       rec.interimResults = true;
       rec.continuous = false;
       rec.maxAlternatives = 5;
@@ -473,9 +548,9 @@
 
   function setLevel(level, announce) {
     state.level = Math.max(1, Math.min(3, level));
-    document.querySelectorAll('.levels button').forEach((b) => b.classList.toggle('on', Number(b.dataset.level) === state.level));
+    document.querySelectorAll('[data-level]').forEach((b) => b.classList.toggle('on', Number(b.dataset.level) === state.level));
     renderAnswers();
-    if (announce) return say(`רמה ${['', 'קלה', 'בינונית', 'מלאה'][state.level]}.`);
+    if (announce) return say(tr().level(state.level));
     return Promise.resolve();
   }
 
@@ -485,7 +560,7 @@
     for (const key of LEVELS[state.level]) {
       const b = document.createElement('button');
       b.type = 'button';
-      b.textContent = BY_KEY[key].name;
+      b.textContent = nm(BY_KEY[key]);
       b.dataset.key = key;
       b.addEventListener('click', () => {
         tappedAnswer = key;
@@ -507,7 +582,7 @@
   }
 
   async function playCurrent() {
-    setStatus('מקשיב... (משמיע מרווח)');
+    setStatus(tr().playing);
     await wait(playInterval(state.root, state.current.semi));
   }
 
@@ -515,7 +590,7 @@
   async function micCheck(runId) {
     // ההאזנה הראשונה חייבת להתחיל עוד בתוך הלחיצה על "התחל" (בלי await
     // לפניה) — ב-iOS ייתכן שהמיקרופון לא יאושר אם הבקשה מגיעה אחרי דיבור.
-    setStatus('🎤 בדיקת מיקרופון: תגיד "מוכן"');
+    setStatus(tr().micCheck);
     for (let attempt = 0; attempt < 3; attempt++) {
       if (runId !== state.runId) return false;
       const { texts, error } = await listen(6000);
@@ -526,8 +601,8 @@
         return true;
       }
       if (attempt < 2) {
-        await say('לא שמעתי כלום. תגיד "מוכן", קצת יותר חזק.');
-        setStatus('🎤 תגיד "מוכן"');
+        await say(tr().notHeardMic);
+        setStatus(tr().sayReady);
       }
     }
     errorEl.textContent = 'המיקרופון פועל אבל לא קיבלתי שום מילה. בדוק שהמיקרופון לא מכוסה, ושב"הגדרות ← כללי ← מקלדת" ההכתבה מופעלת ועברית מסומנת בשפות ההכתבה.  [קוד: no-speech]';
@@ -539,11 +614,11 @@
     pickInterval();
     await playCurrent();
     if (runId !== state.runId) return;
-    await say('מה שמעת?');
+    await say(tr().whatHeard);
 
     let answerKey = null;
     for (let attempt = 0; attempt < 3 && runId === state.runId; attempt++) {
-      setStatus('🎤 מקשיב...');
+      setStatus(tr().listening);
       tappedAnswer = null;
       const { texts, error } = await listen(7000);
       if (runId !== state.runId) return;
@@ -554,12 +629,12 @@
 
       if (!parsed) {
         if (texts.length) logMisheard(texts[0]);
-        const retry = attempt === 0 ? 'לא הבנתי, שוב?' : 'תגיד את המספר, למשל חמישית, או שלישית גדולה.';
-        await say(attempt < 2 ? (texts.length ? retry : 'לא שמעתי, שוב?') : '');
+        const retry = attempt === 0 ? tr().retry1 : tr().retry2;
+        await say(attempt < 2 ? (texts.length ? retry : tr().notHeard) : '');
         continue;
       }
       if (parsed.type === 'command') {
-        if (parsed.cmd === 'stop') { await say('סיימנו. כל הכבוד!'); stop(); return; }
+        if (parsed.cmd === 'stop') { await say(tr().done); stop(); return; }
         if (parsed.cmd === 'repeat') { await playCurrent(); attempt--; continue; }
         if (parsed.cmd === 'reveal') { break; }
         if (parsed.cmd === 'harder' || parsed.cmd === 'easier') {
@@ -568,15 +643,15 @@
         }
       }
       if (parsed.type === 'needQuality') {
-        await say('גדולה או קטנה?');
-        setStatus('🎤 גדולה או קטנה?');
+        await say(tr().majorMinor);
+        setStatus(`🎤 ${tr().majorMinor}`);
         const second = await listen(5000);
         if (runId !== state.runId) return;
         showHeard(second.texts[0] || '', false);
         answerKey = parseQuality(second.texts, parsed.family);
         if (answerKey) break;
         if (second.texts.length) logMisheard(second.texts[0]);
-        await say('לא הבנתי.');
+        await say(tr().didntGet);
         continue;
       }
       if (parsed.type === 'answer') { answerKey = parsed.key; break; }
@@ -594,19 +669,19 @@
       state.streak += 1;
       state.recent.push(true);
       updateScore();
-      setStatus(`נכון! ${right.name}`, 'ok');
-      await say(state.streak > 0 && state.streak % 5 === 0 ? `נכון! ${state.streak} ברצף!` : `נכון! ${right.name}.`);
+      setStatus(tr().correctStatus(nm(right)), 'ok');
+      await say(state.streak > 0 && state.streak % 5 === 0 ? tr().streak(state.streak) : tr().correct(nm(right)));
     } else {
       state.streak = 0;
       state.recent.push(false);
       updateScore();
-      setStatus(`זו הייתה ${right.name}`, 'no');
+      setStatus(tr().wrongStatus(nm(right)), 'no');
       if (answerKey && BY_KEY[answerKey]) {
-        await say(`לא. אמרת ${BY_KEY[answerKey].name}. ככה היא נשמעת:`);
+        await say(tr().youSaid(nm(BY_KEY[answerKey])));
         await wait(playInterval(state.root, BY_KEY[answerKey].semi));
-        await say(`ומה ששמעת היה ${right.name}, ${right.ref}:`);
+        await say(tr().andItWas(nm(right), rf(right)));
       } else {
-        await say(`זו הייתה ${right.name}, ${right.ref}:`);
+        await say(tr().itWas(nm(right), rf(right)));
       }
       await wait(playInterval(state.root, right.semi));
     }
@@ -614,7 +689,7 @@
     // עליית רמה אוטומטית: 9 מתוך 10 האחרונים נכונים.
     if (state.level < 3 && state.recent.length === 10 && state.recent.filter(Boolean).length >= 9) {
       state.recent = [];
-      await say('אתה שולט ברמה הזו. עולים רמה!');
+      await say(tr().levelUp);
       await setLevel(state.level + 1, true);
     }
     await wait(500);
@@ -639,7 +714,7 @@
       return;
     }
     if (runId !== state.runId) return;
-    await say('מעולה, אני שומע אותך. אני משמיע מרווח, ואתה אומר מה שמעת.');
+    await say(tr().greet);
     while (state.running && runId === state.runId) {
       await round(runId);
     }
@@ -683,14 +758,25 @@
   }
 
   mainBtn.addEventListener('click', () => (state.running ? stop() : start()));
-  document.querySelectorAll('.levels button').forEach((b) => b.addEventListener('click', () => setLevel(Number(b.dataset.level), false)));
+  document.querySelectorAll('[data-level]').forEach((b) => b.addEventListener('click', () => setLevel(Number(b.dataset.level), false)));
+
+  function setLang(lang) {
+    if (state.running) stop();
+    LANG = lang === 'en' ? 'en' : 'he';
+    try { localStorage.setItem('talk-lang', LANG); } catch { /* */ }
+    document.querySelectorAll('[data-lang]').forEach((b) => b.classList.toggle('on', b.dataset.lang === LANG));
+    document.querySelectorAll('[data-help]').forEach((p) => { p.hidden = p.dataset.help !== LANG; });
+    renderAnswers();
+  }
+  document.querySelectorAll('[data-lang]').forEach((b) => b.addEventListener('click', () => setLang(b.dataset.lang)));
+  setLang(LANG);
   renderAnswers();
   renderMisheard();
   updateScore();
   if (!Recognition) showError('unsupported');
 
   // חשיפה לבדיקות אוטומטיות בלבד.
-  window.__talk = { parse, parseQuality, state };
+  window.__talk = { parse, parseQuality, state, setLang };
 })();
 </script>
 </body>
